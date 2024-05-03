@@ -1,0 +1,59 @@
+name: Reusable Workflow for Git Operations
+
+on:
+  push:
+
+jobs:
+  run-git-operations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Run Git Operations Script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { getSemanticVersion } = require('@contiamo/git-describe');
+
+            async function git(args) {
+              let stdout = '';
+              let stderr = '';
+              const options = {};
+              options.listeners = {
+                stdout: (data) => {
+                  stdout += data.toString();
+                },
+                stderr: (data) => {
+                  stderr += data.toString();
+                },
+              };
+              const returnCode = await exec.exec('git', args, options);
+              if (returnCode !== 0) {
+                throw new Error(stderr.trim());
+              }
+              return stdout.trim();
+            }
+
+            let sha = '';
+            try {
+              sha = await git(['rev-parse', '--short', 'HEAD']);
+              core.setOutput('shortSHA', sha);
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : String(error);
+              core.setFailed(msg);
+            }
+
+            try {
+              const regex = /\+/i;
+              const semver = getSemanticVersion();
+              core.setOutput('semver', semver.replace(regex, '.'));
+            } catch (error) {
+              const msg = error instanceof Error ? error.message : String(error);
+              core.warning(msg);
+              core.setOutput('semver', sha);
+            }
+      - name: Echo Outputs
+        run: |
+          echo "Short SHA: ${{ steps.run-git-operations.outputs.shortSHA }}"
+          echo "Semantic Version: ${{ steps.run-git-operations.outputs.semver }}"
