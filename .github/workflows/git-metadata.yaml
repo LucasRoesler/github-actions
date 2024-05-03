@@ -1,20 +1,36 @@
-name: Reusable Workflow for Git Operations
+name: Git metadata
 
 on:
-  push:
+  workflow_call:
+    outputs:
+      semver:
+        description: 'The (next) Semantic version of this commit'
+        value: ${{ jobs.metadata.outputs.semver }}
+      shortSHA:
+        description: 'Short SHA'
+        value: ${{ jobs.metadata.outputs.shortSHA }}
 
 jobs:
-  run-git-operations:
+  metadata:
     runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.calculate-metadata.outputs.semver }}
+      shortSHA: ${{ steps.calculate-metadata.outputs.shortSHA }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
 
       - name: install git-describe
         run: npm install @contiamo/git-describe
 
-      - name: Run Git Operations Script
+      - name: Calcuation Metadata
         uses: actions/github-script@v7
+        id: calculate-metadata
         with:
           script: |
             const { getSemanticVersion } = require('@contiamo/git-describe');
@@ -39,7 +55,8 @@ jobs:
               core.warning(msg);
               core.setOutput('semver', sha);
             }
+
       - name: Echo Outputs
         run: |
-          echo "Short SHA: ${{ steps.run-git-operations.outputs.shortSHA }}"
-          echo "Semantic Version: ${{ steps.run-git-operations.outputs.semver }}"
+          echo "Short SHA: ${{ steps.calculate-metadata.outputs.shortSHA }}"
+          echo "Semantic Version: ${{ steps.calculate-metadata.outputs.semver }}"
